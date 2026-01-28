@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi Reminder App</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+  padding: 15px;
+}
+h2 {
+  text-align: center;
+}
+.card {
+  background: #fff;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+input, button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+}
+button {
+  background: #1976d2;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+}
+.reminder {
+  background: #eef2f7;
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+.small {
+  font-size: 12px;
+  color: gray;
+}
+.stop {
+  background: #c62828;
+  margin-top: 5px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>⏰ Multiple Reminders</h2>
+
+<div class="card">
+  <h3>Add Reminder</h3>
+  <input type="text" id="msg" placeholder="Reminder message">
+  <input type="number" id="freq" placeholder="Frequency (minutes)">
+  <button onclick="addReminder()">Add Reminder</button>
+</div>
+
+<div class="card">
+  <h3>📋 Active Reminders</h3>
+  <div id="list"></div>
+</div>
+
+<script>
+let timers = {};
+
+/* ---------- ADD REMINDER ---------- */
+function addReminder() {
+  let msg = document.getElementById("msg").value;
+  let freq = document.getElementById("freq").value;
+
+  if (!msg || !freq) {
+    alert("Enter message and frequency");
+    return;
+  }
+
+  let reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
+  let id = Date.now();
+
+  reminders.push({
+    id,
+    msg,
+    freq
+  });
+
+  localStorage.setItem("reminders", JSON.stringify(reminders));
+
+  document.getElementById("msg").value = "";
+  document.getElementById("freq").value = "";
+
+  requestPermissionAndStart(id, msg, freq);
+  render();
+}
+
+/* ---------- NOTIFICATION ---------- */
+function requestPermissionAndStart(id, msg, freq) {
+  Notification.requestPermission().then(p => {
+    if (p === "granted") {
+      startTimer(id, msg, freq);
+    } else {
+      alert("Notification permission denied");
+    }
+  });
+}
+
+function startTimer(id, msg, freq) {
+  stopTimer(id);
+
+  timers[id] = setInterval(() => {
+    new Notification("⏰ Reminder", {
+      body: msg
+    });
+  }, freq * 60 * 1000);
+}
+
+function stopTimer(id) {
+  if (timers[id]) {
+    clearInterval(timers[id]);
+    delete timers[id];
+  }
+}
+
+/* ---------- REMOVE REMINDER ---------- */
+function removeReminder(id) {
+  stopTimer(id);
+
+  let reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
+  reminders = reminders.filter(r => r.id !== id);
+  localStorage.setItem("reminders", JSON.stringify(reminders));
+  render();
+}
+
+/* ---------- RENDER ---------- */
+function render() {
+  let reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
+  let html = "";
+
+  reminders.forEach(r => {
+    html += `
+      <div class="reminder">
+        <b>${r.msg}</b><br>
+        <span class="small">Every ${r.freq} minutes</span>
+        <button class="stop" onclick="removeReminder(${r.id})">
+          Stop
+        </button>
+      </div>`;
+  });
+
+  document.getElementById("list").innerHTML = html;
+}
+
+/* ---------- RESTORE ON OPEN ---------- */
+window.onload = () => {
+  render();
+
+  if (Notification.permission === "granted") {
+    let reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
+    reminders.forEach(r => {
+      startTimer(r.id, r.msg, r.freq);
+    });
+  }
+};
+</script>
+
+</body>
+</html>
