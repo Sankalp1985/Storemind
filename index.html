@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notes & Multi Reminders</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+  padding: 15px;
+}
+h2 { text-align:center; }
+.card {
+  background:#fff;
+  padding:15px;
+  margin-bottom:15px;
+  border-radius:10px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
+input, textarea, button {
+  width:100%;
+  margin-top:8px;
+  padding:8px;
+}
+textarea { height:70px; }
+button { background:#1976d2; color:#fff; border:none; border-radius:5px; }
+.note, .reminder, .image-item {
+  background:#eef2f7; padding:10px; border-radius:6px; margin-top:8px;
+}
+.small { font-size:12px; color:gray; }
+.stop { background:#c62828; margin-top:5px; }
+img { max-width:100%; margin-top:5px; border-radius:5px; }
+</style>
+</head>
+<body>
+
+<h2>📝 Notes & Reminders with Images</h2>
+
+<div class="card">
+  <h3>Add Note</h3>
+  <textarea id="noteText" placeholder="Write your note"></textarea>
+  <input type="file" id="noteImage" accept="image/*">
+  <button onclick="saveNote()">Save Note</button>
+</div>
+
+<div class="card">
+  <h3>Add Reminder</h3>
+  <input type="text" id="reminderMsg" placeholder="Reminder message">
+  <input type="number" id="reminderFreq" placeholder="Frequency (minutes)">
+  <button onclick="addReminder()">Add Reminder</button>
+</div>
+
+<div class="card">
+  <h3>📋 Saved Notes</h3>
+  <div id="notesList"></div>
+</div>
+
+<div class="card">
+  <h3>⏰ Active Reminders</h3>
+  <div id="reminderList"></div>
+</div>
+
+<script>
+/* ---------- NOTES ---------- */
+function saveNote() {
+  let text = document.getElementById("noteText").value;
+  let file = document.getElementById("noteImage").files[0];
+
+  if (!text && !file) {
+    alert("Enter note text or choose an image");
+    return;
+  }
+
+  let notes = JSON.parse(localStorage.getItem("notes") || "[]");
+
+  if (file) {
+    let reader = new FileReader();
+    reader.onload = function(e) {
+      notes.push({ text, image: e.target.result, time: new Date().toLocaleString() });
+      localStorage.setItem("notes", JSON.stringify(notes));
+      document.getElementById("noteText").value = "";
+      document.getElementById("noteImage").value = "";
+      loadNotes();
+    }
+    reader.readAsDataURL(file);
+  } else {
+    notes.push({ text, image: null, time: new Date().toLocaleString() });
+    localStorage.setItem("notes", JSON.stringify(notes));
+    document.getElementById("noteText").value = "";
+    loadNotes();
+  }
+}
+
+function loadNotes() {
+  let notes = JSON.parse(localStorage.getItem("notes") || "[]");
+  let html = "";
+  notes.forEach(n => {
+    html += `<div class="note">
+      ${n.text ? n.text+"<br>" : ""}
+      ${n.image ? `<img src="${n.image}">` : ""}
+      <small>${n.time}</small>
+    </div>`;
+  });
+  document.getElementById("notesList").innerHTML = html;
+}
+
+/* ---------- REMINDERS ---------- */
+let timers = {};
+
+function addReminder() {
+  let msg = document.getElementById("reminderMsg").value;
+  let freq = document.getElementById("reminderFreq").value;
+
+  if (!msg || !freq) {
+    alert("Enter message and frequency");
+    return;
+  }
+
+  let reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
+  let id = Date.now();
+
+  reminders.push({ id, msg, freq });
+  localStorage.setItem("reminders", JSON.stringify(reminders));
+
+  document.getElementById("reminderMsg").value = "";
+  document.getElementById("reminderFreq").value = "";
+
+  requestPermissionAndStart(id, msg, freq);
+  renderReminders();
+}
+
+function requestPermissionAndStart(id, msg, freq) {
+  Notification.requestPermission().then(p => {
+    if (p === "granted") startTimer(id, msg, freq);
+    else alert("Notification permission denied");
+  });
+}
+
+function startTimer(id, msg, freq) {
+  stopTimer(id);
+  timers[id] = setInterval(() => {
+    new Notification("⏰ Reminder", { body: msg });
+  }, freq * 60 * 1000);
+}
+
+function stopTimer(id) {
+  if (timers[id]) { clearInterval(timers[id]); delete timers[id]; }
+}
+
+function removeReminder(id) {
+  stopTimer(id);
+  let reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
+  reminders = reminders.filter(r => r.id !== id);
+  localStorage.setItem("reminders", JSON.stringify(reminders));
+  renderReminders();
+}
+
+function renderReminders() {
+  let reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
+  let html = "";
+  reminders.forEach(r => {
+    html += `<div class="reminder">
+      <b>${r.msg}</b><br>
+      <span class="small">Every ${r.freq} minutes</span>
+      <button class="stop" onclick="removeReminder(${r.id})">Stop</button>
+    </div>`;
+  });
+  document.getElementById("reminderList").innerHTML = html;
+}
+
+/* ---------- ON PAGE LOAD ---------- */
+window.onload = () => {
+  loadNotes();
+  renderReminders();
+
+  let reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
+  if (Notification.permission === "granted") {
+    reminders.forEach(r => startTimer(r.id, r.msg, r.freq));
+  }
+};
+</script>
+
+</body>
+</html>
